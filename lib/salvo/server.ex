@@ -13,6 +13,8 @@ defmodule Salvo.Server do
           receive do
             {:recv_frame, ^ref, frame} ->
               {[frame], ref}
+            {:halt, ^ref} ->
+              {:halt, ref}
           end
         end
 
@@ -35,18 +37,25 @@ defmodule Salvo.Server do
       @doc false
       defp flush(ref) do
         receive do
-          {:recv_frame, ^ref, frame} ->
-            IO.inspect {:flush_frame, ref, frame}
+          {:recv_frame, ^ref, _frame} ->
             flush(ref)
-          {:shutdown, ^ref} ->
-            IO.inspect {:flush_shutdown, ref}
+          {:halt, ^ref} ->
             flush(ref)
         after
           0 ->
             :ok
         end
       end
+    end
 
+    defimpl Collectable do
+      def into(original) do
+        {original, fn
+          stream, {:cont, x} -> Salvo.Server.send!(stream, x); stream
+          stream, :done      -> stream
+          _stream, :halt     -> :ok
+        end}
+      end
     end
   end
 
@@ -64,8 +73,11 @@ defmodule Salvo.Server do
     def websocket_handle(:ping, state) do
       {:reply, :pong, state}
     end
-    def websocket_handle(frame, state) do
+    def websocket_handle({type, frame}, state) when type in [:text, :binary] do
       send state.pid, {:recv_frame, state.ref, frame}
+      {:ok, state}
+    end
+    def websocket_handle(_unknown, state) do
       {:ok, state}
     end
 
@@ -90,13 +102,8 @@ defmodule Salvo.Server do
 
   ## Example
 
-      # Write all incoming text frames to a file.
+      # Write all incoming frames to a file.
       iex> Salvo.Server.stream!("/websocket", 8080)
-      ...> |> Stream.filter(fn
-      ...>   {:text, _msg} -> true
-      ...>   _ -> false
-      ...> end)
-      ...> |> Stream.map(fn {:text, msg} -> msg end)
       ...> |> Stream.into(File.stream!("messages.txt"))
       ...> |> Stream.run()
   """
@@ -119,7 +126,11 @@ defmodule Salvo.Server do
   Note that `Salvo.Server.send!/2` always returns `:ok` and doesn't check if the server is
   alive.
   """
-  def send!(%Stream{ref: ref}, frame) do
+  def send!(%Stream{ref: ref}, frame, opts \\ []) do
+    frame = case {Keyword.get(opts, :type, :text), frame} do
+      {_, :close} -> :close
+      {type, msg} -> {type, msg}
+    end
     for pid <- :ranch.procs(ref, :connections) do
       send pid, {:send_frame, frame}
     end
@@ -136,7 +147,7 @@ defmodule Salvo.Server do
   @doc """
   Check if the server is alive and listening for connections.
   """
-  def alive?(%Stream{ref: ref}) do
+  def listening?(%Stream{ref: ref}) do
     Enum.any?(:ranch.info(), fn {r, _} -> r == ref end)
   end
 end

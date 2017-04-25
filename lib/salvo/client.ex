@@ -11,10 +11,10 @@ defmodule Salvo.Client do
 
         next_fun = fn pid ->
           receive do
-            {:halt, ^pid} ->
-              {:halt, pid}
             {:recv_frame, ^pid, frame} ->
               {[frame], pid}
+            {:halt, ^pid} ->
+              {:halt, pid}
           end
         end
 
@@ -37,16 +37,24 @@ defmodule Salvo.Client do
       @doc false
       defp flush(pid) do
         receive do
-          {:recv_frame, ^pid, frame} ->
-            IO.inspect {:flush_frame, pid, frame}
+          {:recv_frame, ^pid, _frame} ->
             flush(pid)
-          {:shutdown, ^pid} ->
-            IO.inspect {:flush_shutdown, pid}
+          {:halt, ^pid} ->
             flush(pid)
         after
           0 ->
             :ok
         end
+      end
+    end
+
+    defimpl Collectable do
+      def into(original) do
+        {original, fn
+          stream, {:cont, x} -> Salvo.Client.send!(stream, x); stream
+          stream, :done      -> stream
+          _stream, :halt     -> :ok
+        end}
       end
     end
   end
@@ -74,6 +82,10 @@ defmodule Salvo.Client do
         {:error, e} ->
           {:stop, e}
       end
+    end
+
+    def handle_call(:connected?, _from, state) do
+      {:reply, state.upgraded?, state}
     end
 
     def handle_cast({:send_frame, frame}, state) do
@@ -110,19 +122,17 @@ defmodule Salvo.Client do
       send state.from, {:halt, self()}
       {:stop, :normal, state}
     end
-    def handle_info({:gun_ws, _pid, {:close, _, _}}, state) do
-      {:noreply, state}
-    end
-    def handle_info({:gun_ws, _pid, frame}, state) do
+    def handle_info({:gun_ws, _pid, {type, frame}}, state) when type in [:text, :binary] do
       send state.from, {:recv_frame, self(), frame}
       {:noreply, state}
     end
-    def handle_info({:gun_down, pid, _, _, _, _}, state) do
-      IO.inspect {:connection_down, pid}
+    def handle_info({:gun_ws, _pid, _unknown}, state) do
+      {:noreply, state}
+    end
+    def handle_info({:gun_down, _pid, _, _, _, _}, state) do
       {:noreply, %{state|upgraded?: false}}
     end
     def handle_info({:gun_up, pid, _}, state) do
-      IO.inspect {:connection_up, pid}
       _ = :gun.ws_upgrade(pid, state.path)
       {:noreply, state}
     end
@@ -130,8 +140,7 @@ defmodule Salvo.Client do
       send state.from, {:halt, self()}
       exit({:gun_error, reason})
     end
-    def handle_info({:DOWN, ref, :process, pid, reason}, state) do
-      IO.inspect {:client_down, pid}
+    def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
       if ref == state.mref do
         send state.from, {:halt, self()}
         if reason == :normal do
@@ -180,8 +189,9 @@ defmodule Salvo.Client do
   Note that `Salvo.Client.send!/2` always returns `:ok` and doesn't check if the client is
   connected or even alive.
   """
-  def send!(%Stream{pid: pid}, frame) do
-    GenServer.cast(pid, {:send_frame, frame})
+  def send!(%Stream{pid: pid}, data, opts \\ []) do
+    type = Keyword.get(opts, :type, :text)
+    GenServer.cast(pid, {:send_frame, {type, data}})
   end
 
   @doc """
@@ -192,11 +202,9 @@ defmodule Salvo.Client do
   end
 
   @doc """
-  Check if the client is alive
-
-  Note that it doesn't check if the client is actually connected.
+  Check if the client is alive and connected
   """
-  def alive?(%Stream{pid: pid}) do
-    Process.alive?(pid)
+  def connected?(%Stream{pid: pid}) do
+    Process.alive?(pid) and GenServer.call(pid, :connected?)
   end
 end
