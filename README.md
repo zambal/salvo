@@ -12,7 +12,7 @@ An example says more than a thousand as the saying goes, so here's one:
 
 ```elixir
 # Start a streaming server that listens on port 8080
-iex> s = Salvo.Server.stream!("/websocket", 8080)
+iex> server = Salvo.Server.stream!("/websocket", 8080)
 %Salvo.Server.Stream{path: "/websocket", port: 8080, ref: #Reference<0.0.1.789>}
 
 # Spawn a process and start a streaming client in it that prints all incoming frames to the console.
@@ -23,7 +23,7 @@ iex> spawn fn ->
 #PID<0.178.0>
 
 # Send a frame from the server to the client
-iex> Salvo.Client.send!(client, "abcd")
+iex> Salvo.Server.send!(server, "abcd")
 :ok
 "abcd"
 ```
@@ -31,17 +31,17 @@ And another example that uses streams and collectables to push a file from the s
 
 ```elixir
 # node 1
-iex> s = Salvo.Server.stream!("/websocket", 8080)
+iex> server = Salvo.Server.stream!("/websocket", 8080)
 
 # node 2
-iex> c = Salvo.Client.stream!("http://127.0.0.1:8080/websocket")
-iex> Stream.into(c, File.stream!("README.bak")) |> Stream.run()
+iex> client = Salvo.Client.stream!("http://127.0.0.1:8080/websocket")
+iex> Stream.into(client, File.stream!("README.bak")) |> Stream.run()
 
 # node 1
-iex> File.stream!("README.md") |> Stream.into(s) |> Stream.run()
+iex> File.stream!("README.md") |> Stream.into(server) |> Stream.run()
 
 # Tell the client to close it's connection
-iex> Salvo.Server.send!(s, :close)
+iex> Salvo.Server.send!(server, :close)
 ```
 
 See the module documentation for more info and examples.
