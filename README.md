@@ -41,7 +41,7 @@ iex> Stream.into(c, File.stream!("README.bak")) |> Stream.run()
 iex> File.stream!("README.md") |> Stream.into(s) |> Stream.run()
 
 # Tell the client to close it's connection
-iex> Salvo.Server.send(s, :close)
+iex> Salvo.Server.send!(s, :close)
 ```
 
 See the module documentation for more info and examples.
