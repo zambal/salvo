@@ -4,29 +4,36 @@ defmodule Salvo.Mixfile do
   def project do
     [app: :salvo,
      version: "0.1.0",
-     elixir: "~> 1.4",
+     elixir: "~> 1.3",
+     description: description(),
+     package: package(),
+     name: "Salvo",
+     source_url: "https://github.com/zambal/salvo",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps()]
   end
 
-  # Configuration for the OTP application
-  #
-  # Type "mix help compile.app" for more information
   def application do
-    # Specify extra applications you'll use from Erlang/Elixir
-    [extra_applications: [:logger]]
+    [extra_applications: []]
   end
 
-  # Dependencies can be Hex packages:
-  #
-  #   {:my_dep, "~> 0.3.0"}
-  #
-  # Or git/path repositories:
-  #
-  #   {:my_dep, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
-  #
-  # Type "mix help deps" for more examples and options
+  defp description do
+    """
+    Experimental websocket server and client leveraging Elixir streams.
+    """
+  end
+
+  defp package do
+    [
+      name: :postgrex,
+      files: ["lib", "mix.exs", "README*", "LICENSE*"],
+      maintainers: ["Vincent Siliakus"],
+      licenses: ["Apache 2.0"],
+      links: %{"GitHub" => "https://github.com/zambal/salvo"}
+    ]
+  end
+
   defp deps do
     [{:ranch, git: "https://github.com/ninenines/ranch", ref: "master", override: true},
      {:gun, git: "https://github.com/ninenines/gun", tag: "1.0.0-pre.2"},
