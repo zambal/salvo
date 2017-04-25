@@ -1,0 +1,6 @@
+%{"cowboy": {:git, "https://github.com/ninenines/cowboy", "b403f26da6bef8ff41855fa499c75f42b02ecb69", [tag: "2.0.0-pre.8"]},
+  "cowlib": {:git, "https://github.com/ninenines/cowlib", "e4da2077723a26301de516c8da9b0b330545b5af", [ref: "master"]},
+  "earmark": {:hex, :earmark, "1.2.0", "bf1ce17aea43ab62f6943b97bd6e3dc032ce45d4f787504e3adf738e54b42f3a", [:mix], []},
+  "ex_doc": {:hex, :ex_doc, "0.15.1", "d5f9d588fd802152516fccfdb96d6073753f77314fcfee892b15b6724ca0d596", [:mix], [{:earmark, "~> 1.1", [hex: :earmark, optional: false]}]},
+  "gun": {:git, "https://github.com/ninenines/gun", "bc733a2ca5f7d07f997ad6edf184f775b23434aa", [tag: "1.0.0-pre.2"]},
+  "ranch": {:git, "https://github.com/ninenines/ranch", "a004ad710eddd0c21aaccc30d5633a76b06164b5", [ref: "master"]}}
