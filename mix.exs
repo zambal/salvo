@@ -26,7 +26,7 @@ defmodule Salvo.Mixfile do
 
   defp package do
     [
-      name: :postgrex,
+      name: :salvo,
       files: ["lib", "mix.exs", "README*", "LICENSE*"],
       maintainers: ["Vincent Siliakus"],
       licenses: ["Apache 2.0"],
