@@ -6,7 +6,7 @@ The client is powered by [gun](https://github.com/ninenines/gun) and
 the server by [cowboy](https://github.com/ninenines/cowboy).
 
 Messages received by both the client and server are emitted as Elixir [streams](https://hexdocs.pm/elixir/Stream.html).
-Both the client and server also implement the Collectable protocol, so they can be used with `Enum.into/2`.
+Both the client and server also implement the `Collectable` protocol, so they can be used with `Enum.into/2`.
 
 An example says more than a thousand as the saying goes, so here's one:
 
