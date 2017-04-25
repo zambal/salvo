@@ -40,7 +40,7 @@ iex> Stream.into(client, File.stream!("README.bak")) |> Stream.run()
 # node 1
 iex> File.stream!("README.md") |> Stream.into(server) |> Stream.run()
 
-# Tell the client to close it's connection
+# Disconnect with all clients
 iex> Salvo.Server.send!(server, :close)
 ```
 
