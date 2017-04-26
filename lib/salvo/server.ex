@@ -2,11 +2,12 @@ defmodule Salvo.Server do
   defmodule Handler do
     @moduledoc false
 
-    def init(req, opts) do
-      {:cowboy_websocket, req, opts}
+    def init(req, state) do
+      {:cowboy_websocket, req, Map.put(state, :path, req.path)}
     end
 
     def websocket_init(state) do
+      {:ok, _} = Registry.register(Salvo, {:server, state.path}, nil)
       {:ok, state}
     end
 
@@ -14,7 +15,10 @@ defmodule Salvo.Server do
       {:reply, :pong, state}
     end
     def websocket_handle({type, frame}, state) when type in [:text, :binary] do
-      send state.pid, {:recv_frame, state.ref, frame}
+      Registry.lookup(Salvo, {:stream, state.path})
+      |> Enum.each(fn {pid, _} ->
+        send pid, {:recv_frame, state.path, frame}
+      end)
       {:ok, state}
     end
     def websocket_handle(_unknown, state) do
@@ -26,6 +30,19 @@ defmodule Salvo.Server do
     end
     def websocket_info(_msg, state) do
       {:ok, state}
+    end
+  end
+
+  @doc false
+  def start(port) do
+    dispatch = :cowboy_router.compile(
+      _: [{'/[...]', Handler, %{}}]
+    )
+    case :cowboy.start_clear(Salvo.Server, 100, [port: port], %{env: %{dispatch: dispatch}}) do
+      {:ok, _} ->
+        :ok
+      {:error, e} ->
+        raise "Failed starting salvo server with reason: #{inspect e}"
     end
   end
 
@@ -47,41 +64,45 @@ defmodule Salvo.Server do
       ...> |> Stream.into(File.stream!("messages.txt"))
       ...> |> Stream.run()
   """
-  def stream!(path, port) do
-    ref = make_ref()
-    dispatch = :cowboy_router.compile(
-      _: [{path, Handler, %{pid: self(), ref: ref}}]
-    )
-    case :cowboy.start_clear(ref, 100, [port: port], %{env: %{dispatch: dispatch}}) do
-      {:ok, _} ->
-        %Salvo.Stream{ref: ref, mod: __MODULE__}
-      {:error, e} ->
-        raise "Failed starting salvo server with reason: #{inspect e}"
-    end
+  def stream!(path) do
+    %Salvo.Stream{ref: path, mod: Salvo.Server}
   end
 
   @doc """
-  Broadcast a message to all connected websocket clients
-
-  Note that `Salvo.Server.send!/2` always returns `:ok` and doesn't check if the server is
-  alive.
+  Send a message to all websocket clients that are connected at `path`
   """
-  def send!(%Salvo.Stream{ref: ref} = stream, frame, opts \\ []) do
+  def send_frame(path, frame, opts \\ []) do
     frame = case {Keyword.get(opts, :type, :text), frame} do
       {_, :close} -> :close
       {type, msg} -> {type, msg}
     end
-    for pid <- :ranch.procs(ref, :connections) do
+
+    Registry.lookup(Salvo, {:server, path})
+    |> Enum.each(fn {pid, _} ->
       send pid, {:send_frame, frame}
+    end)
+  end
+
+  @doc """
+  Broadcast a message to all connected websocket clients
+  """
+  def broadcast(frame, opts \\ []) do
+    frame = case {Keyword.get(opts, :type, :text), frame} do
+      {_, :close} -> :close
+      {type, msg} -> {type, msg}
     end
-    stream
+
+    :ranch.procs(Salvo.Server, :connections)
+    |> Enum.each(fn pid ->
+      send pid, {:send_frame, frame}
+    end)
   end
 
   @doc """
   Gracefully close and shutdown the server
   """
   def shutdown(%Salvo.Stream{ref: ref}) do
-    :cowboy.stop_listener(ref)
+    Registry.unregister(Salvo.Server, {:stream, ref})
   end
 
   @doc """

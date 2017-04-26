@@ -3,8 +3,8 @@ defmodule Salvo.Mixfile do
 
   def project do
     [app: :salvo,
-     version: "0.1.0",
-     elixir: "~> 1.3",
+     version: "0.2.0",
+     elixir: "~> 1.4",
      description: description(),
      package: package(),
      name: "Salvo",
@@ -15,7 +15,7 @@ defmodule Salvo.Mixfile do
   end
 
   def application do
-    [extra_applications: []]
+    [extra_applications: [], mod: {Salvo.Application, []}]
   end
 
   defp description do

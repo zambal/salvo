@@ -4,21 +4,22 @@ defmodule Salvo.Stream do
   defimpl Enumerable do
     def reduce(%Salvo.Stream{} = stream, acc, fun) do
       start_fun = fn ->
-        stream
+        {:ok, _} = Registry.register(Salvo, {:stream, stream.ref}, nil)
+        stream.ref
       end
 
-      next_fun = fn %{ref: ref} = stream ->
+      next_fun = fn ref ->
         receive do
           {:recv_frame, ^ref, frame} ->
-            {[frame], stream}
+            {[frame], ref}
           {:halt, ^ref} ->
-            {:halt, stream}
+            {:halt, ref}
         end
       end
 
-      after_fun = fn stream ->
-        stream.mod.shutdown(stream)
-        flush(stream.ref)
+      after_fun = fn ref ->
+        Registry.unregister(Salvo, {:stream, ref})
+        flush(ref)
       end
 
       Elixir.Stream.resource(start_fun, next_fun, after_fun).(acc, fun)
@@ -49,7 +50,7 @@ defmodule Salvo.Stream do
   defimpl Collectable do
     def into(original) do
       {original, fn
-        stream, {:cont, x} -> stream.mod.send!(stream, x);
+        stream, {:cont, x} -> stream.mod.send_frame(stream.ref, x); stream
         stream, :done      -> stream
         _stream, :halt     -> :ok
       end}
