@@ -1,64 +1,4 @@
 defmodule Salvo.Client do
-  defmodule Stream do
-    @moduledoc false
-    defstruct pid: nil, url: nil
-
-    defimpl Enumerable do
-      def reduce(%{pid: pid}, acc, fun) do
-        start_fun = fn ->
-          pid
-        end
-
-        next_fun = fn pid ->
-          receive do
-            {:recv_frame, ^pid, frame} ->
-              {[frame], pid}
-            {:halt, ^pid} ->
-              {:halt, pid}
-          end
-        end
-
-        after_fun = fn pid ->
-          GenServer.cast pid, :shutdown
-          flush(pid)
-        end
-
-        Elixir.Stream.resource(start_fun, next_fun, after_fun).(acc, fun)
-      end
-
-      def member?(_stream, _term) do
-        {:error, __MODULE__}
-      end
-
-      def count(_stream) do
-        {:error, __MODULE__}
-      end
-
-      @doc false
-      defp flush(pid) do
-        receive do
-          {:recv_frame, ^pid, _frame} ->
-            flush(pid)
-          {:halt, ^pid} ->
-            flush(pid)
-        after
-          0 ->
-            :ok
-        end
-      end
-    end
-
-    defimpl Collectable do
-      def into(original) do
-        {original, fn
-          stream, {:cont, x} -> Salvo.Client.send!(stream, x); stream
-          stream, :done      -> stream
-          _stream, :halt     -> :ok
-        end}
-      end
-    end
-  end
-
   defmodule Handler do
     @moduledoc false
     use GenServer
@@ -177,7 +117,7 @@ defmodule Salvo.Client do
   def stream!(url) do
     case Handler.start_link(url) do
       {:ok, pid} ->
-        %Stream{pid: pid, url: url}
+        %Salvo.Stream{ref: pid, mod: __MODULE__}
       {:error, e} ->
         raise "Failed starting salvo client with reason: #{inspect e}"
     end
@@ -189,22 +129,23 @@ defmodule Salvo.Client do
   Note that `Salvo.Client.send!/2` always returns `:ok` and doesn't check if the client is
   connected or even alive.
   """
-  def send!(%Stream{pid: pid}, data, opts \\ []) do
+  def send!(%Salvo.Stream{ref: pid} = stream, data, opts \\ []) do
     type = Keyword.get(opts, :type, :text)
     GenServer.cast(pid, {:send_frame, {type, data}})
+    stream
   end
 
   @doc """
   Gracefully close and shutdown the client
   """
-  def shutdown(%Stream{pid: pid}) do
+  def shutdown(%Salvo.Stream{ref: pid}) do
     GenServer.cast(pid, :shutdown)
   end
 
   @doc """
   Check if the client is alive and connected
   """
-  def connected?(%Stream{pid: pid}) do
+  def connected?(%Salvo.Stream{ref: pid}) do
     Process.alive?(pid) and GenServer.call(pid, :connected?)
   end
 end
