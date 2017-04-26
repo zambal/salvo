@@ -37,7 +37,7 @@ iex> Stream.into(client, File.stream!("README.bak")) |> Stream.run()
 iex> File.stream!("README.md") |> Stream.into(server) |> Stream.run()
 
 # Disconnect with all clients
-iex> Salvo.Server.send!(server, :close)
+iex> Salvo.Server.send_frame("/websocket", :close)
 ```
 
 See the module documentation for more info and examples.
