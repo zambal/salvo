@@ -18,8 +18,8 @@ iex> spawn fn ->
 ...> end
 #PID<0.178.0>
 
-# Broadcast a frame only to clients that are connected at http://127.0.0.1:8080/websocket
-iex> Salvo.Server.send_frame("abcd", path: "/websocket)
+# Broadcast a frame to clients that are connected at /websocket
+iex> Salvo.Server.send_frame("/websocket", "abcd")
 :ok
 "abcd"
 ```
